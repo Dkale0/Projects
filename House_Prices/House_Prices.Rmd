@@ -1,0 +1,224 @@
+---
+title: "House_Prices"
+author: "Darsh Kale"
+date: "1/5/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Predicting House Prices 
+
+## import Libraries
+
+```{r}
+library(ggplot2)
+library(survival)
+library(tidyverse)
+library(conflicted)
+#library(plyr)
+#conflict_prefer("rename", "plyr")
+library(dplyr)
+library(stringr)
+library(data.table)
+library(dummies)
+library(tidyr)
+library(corrplot)
+library(e1071)
+library(caret)
+library(Metrics)
+library(randomForest)
+library(devtools)
+library(ggfortify)
+
+options(warn=-1)
+```
+
+```{r}
+train_data<- read.csv("data/train.csv", stringsAsFactors = F, header = T)
+test_data <- read.csv("data/test.csv", stringsAsFactors = F, header = T)
+```
+
+
+## Change the distribution of Sale price (from skewed to a normal distribution)
+
+```{r}
+ggplot(train_data,aes(SalePrice))+geom_histogram(fill="steelblue",color="black")
+ggplot(train_data,aes(SalePrice))+geom_histogram(fill="steelblue",color="black")+scale_x_log10()
+train_data$SalePrice <- log(train_data$SalePrice+1)
+test_data$SalePrice <- as.numeric(0)
+combined <- rbind(train_data,test_data)
+```
+
+## Dealing with missing values
+
+```{r}
+
+missing_values <- train_data %>% summarise_all(funs(sum(is.na(.)/n())))
+missing_values <- gather(missing_values,key = "feature",value = "missing_pct")
+#missing_values 
+
+data_w_miss <- missing_values[missing_values$missing_pct > 0, ]
+data_w_miss
+
+ggplot(data_w_miss,aes(x=feature,y=missing_pct))+geom_bar(stat="identity",fill="blue")+
+  coord_flip()+theme_bw()
+```
+
+There are cases in which simply replacing the NAs with the mean/or deleting will not be appropriate in the context.
+We leave them as they will be considered as factors in the cases that are categorical variables.
+
+```{r}
+combined$GarageYrBlt[combined$GarageYrBlt==2207] <- 2007 #typo
+
+combined$LotFrontage[is.na(combined$LotFrontage)] <- 0
+combined$MasVnrArea[is.na(combined$MasVnrArea)] <- 0
+
+
+combined$BsmtFinSF1[is.na(combined$BsmtFinSF1)] <- 0
+combined$BsmtFinSF2[is.na(combined$BsmtFinSF2)] <- 0
+combined$BsmtUnfSF[is.na(combined$BsmtUnfSF)] <- 0
+combined$TotalBsmtSF[is.na(combined$TotalBsmtSF)] <- 0
+combined$BsmtFullBath[is.na(combined$BsmtFullBath)] <- 0
+combined$BsmtHalfBath[is.na(combined$BsmtHalfBath)] <- 0
+
+combined$GarageYrBlt[is.na(combined$GarageYrBlt)] <- 0
+combined$GarageCars[is.na(combined$GarageCars)] <- 0
+combined$GarageArea[is.na(combined$GarageArea)] <- 0
+combined[is.na(combined)] <- "None"
+
+```
+
+
+## Recoding ordered factors as pseudo-continuous numerical variables
+
+```{r}
+combined$ExterQual<- recode(combined$ExterQual,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$ExterCond<- recode(combined$ExterCond,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$BsmtQual<- recode(combined$BsmtQual,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$BsmtCond<- recode(combined$BsmtCond,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$BsmtExposure<- recode(combined$BsmtExposure,"None"=0,"No"=1,"Mn"=2,"Av"=3,"Gd"=4)
+combined$BsmtFinType1<- recode(combined$BsmtFinType1,"None"=0,"Unf"=1,"LwQ"=2,"Rec"=3,"BLQ"=4,"ALQ"=5,"GLQ"=6)
+combined$BsmtFinType2<- recode(combined$BsmtFinType2,"None"=0,"Unf"=1,"LwQ"=2,"Rec"=3,"BLQ"=4,"ALQ"=5,"GLQ"=6)
+combined$HeatingQC<- recode(combined$HeatingQC,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$KitchenQual<- recode(combined$KitchenQual,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$Functional<- recode(combined$Functional,"None"=0,"Sev"=1,"Maj2"=2,"Maj1"=3,"Mod"=4,"Min2"=5,"Min1"=6,"Typ"=7)
+combined$FireplaceQu<- recode(combined$FireplaceQu,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$GarageFinish<- recode(combined$GarageFinish,"None"=0,"Unf"=1,"RFn"=2,"Fin"=3)
+combined$GarageQual<- recode(combined$GarageQual,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$GarageCond<- recode(combined$GarageCond,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$PoolQC<- recode(combined$PoolQC,"None"=0,"Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+combined$Fence<- recode(combined$Fence,"None"=0,"MnWw"=1,"GdWo"=2,"MnPrv"=3,"GdPrv"=4)
+combined$TotalSF = combined$TotalBsmtSF + combined$X1stFlrSF + combined$X2ndFlrSF
+```
+
+## Combining data and applying the BoxCox Transformation
+
+```{r}
+combined_dummy <-dummy.data.frame(combined, dummy.classes = "character")
+
+
+feature_classes <- sapply(names(combined_dummy), function(x) {
+  class(combined_dummy[[x]])
+})
+numeric_feats <- names(feature_classes[feature_classes != "character"])
+skewed_feats <- sapply(numeric_feats, function(x) {
+  skewness(combined_dummy[[x]], na.rm = TRUE)
+})
+skewed_feats <- skewed_feats[abs(skewed_feats) > 0.75]
+for (x in names(skewed_feats)) {
+  bc = BoxCoxTrans(combined_dummy[[x]], lambda = 0.15)
+  combined_dummy[[x]] = predict(bc, combined_dummy[[x]])
+}
+```
+
+We split combined data back into test and train sets.
+
+```{r}
+
+train_final <- combined_dummy[1:1460,]
+test_final <- combined_dummy[1461:2919,]
+
+#set.seed(123)
+#in_train <- createDataPartition(train_dummy$SalePrice,p=0.7,list=F)
+#new_train <- train_dummy[in_train,]
+#validation <- train_dummy[-in_train,]
+```
+
+## Removing outliers
+We remove the datapoints beyond the 75th quantile, note that after applying the 
+```{r}
+outliers <- function(x) {
+
+  Q1 <- quantile(x, probs=.25)
+  Q3 <- quantile(x, probs=.75)
+  iqr = Q3-Q1
+
+ upper_limit = Q3 + (iqr*1.5)
+ lower_limit = Q1 - (iqr*1.5)
+
+ x > upper_limit | x < lower_limit
+}
+
+remove_outliers <- function(df, cols = names(df)) {
+  for (col in cols) {
+    df <- df[!outliers(df[[col]]),]
+  }
+  df
+}
+
+
+par (mfrow=c(2,2))
+
+remove_outliers(train_final, c(colnames(train_final)))
+ggplot(train_final,aes(y=SalePrice,x=GrLivArea))+ggtitle("Without Outliers")+geom_point()
+```
+
+
+
+
+
+```{r}
+dim(train_final)
+# removes columns with 0 variance
+train_final = train_final[,which(apply(train_final, 2, var) != 0)]
+
+pca <- prcomp(train_final, scale. = T)
+#center and scale refers to mean and standard deviation of the variables
+names(pca)
+autoplot(pca, loadings = TRUE)
+```
+
+```{r}
+#standard deviation of each principal component
+std_dev <- pca$sdev
+#variance
+variance <- std_dev^2
+#divide the variance by sum of total variance -> to compute the proportion of variance explained by each component
+variance_prop <- variance/sum(variance)
+#first principal component explains 6.98% of the variance, second 3.2%, third 2.5% 
+variance_prop[1:10]
+```
+
+
+```{r}
+#scree plot - the percentage of variance explained by each principal component
+plot(variance_prop, xlab = "Principal Component", ylab = "Proportion of Variance Explained", type = "b", xlim=c(0, 100))
+
+#cumulative variance plot
+# ~ 60 components explains around 70% variance in the data set.
+plot(cumsum(variance_prop), xlab = "Principal Component", ylab = "Cumulative Proportion of Variance Explained", type = "b", xlim=c(0, 60))
+```
+
+```{r}
+# removes columns with 0 variance
+test_final = test_final[,which(apply(train_final, 2, var) != 0)]
+#add a column
+test_final$SalePrice <- 1
+#new training set with principal components
+train_set_pca <- data.frame(SalePrice = train_final$SalePrice, pca$x)
+head(train_set_pca)
+```
+
+
+

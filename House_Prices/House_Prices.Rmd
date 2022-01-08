@@ -32,7 +32,7 @@ library(devtools)
 library(ggfortify)
 library(rpart)
 library(rpart.plot)
-
+library(MLmetrics)
 options(warn=-1)
 ```
 
@@ -194,8 +194,7 @@ ggplot(train_final,aes(y=SalePrice,x=GrLivArea))+ggtitle("Data Without Outliers"
 ```
 
 
-
-
+## Principal Component Analysis
 
 ```{r}
 dim(train_final)
@@ -203,6 +202,7 @@ dim(train_final)
 train_final = train_final[,which(apply(train_final, 2, var) != 0)]
 
 pca <- prcomp(train_final, scale. = T)
+
 #center and scale refers to mean and standard deviation of the variables
 names(pca)
 autoplot(pca, loadings = TRUE)
@@ -237,6 +237,7 @@ plot(cumsum(variance_prop), xlab = "Principal Component", ylab = "Cumulative Pro
 test_final$SalePrice <- 1
 #new training set with principal components
 train_set_pca <- data.frame(SalePrice = train_final$SalePrice, pca$x)
+train_set_pca = train_set_pca[,1:61]
 head(train_set_pca[1:5])
 ```
 
@@ -271,10 +272,44 @@ rpart.plot(model_tree, type=1, extra=100, box.palette ="-RdYlGn", branch.lty = 2
 ```{r}
 valid_set_pca <- predict(pca, newdata = validation)
 valid_set_pca <- as.data.frame(valid_set_pca)
-
+valid_set_pca <- valid_set_pca[,1:61]
 
 sale_price_dtree <- predict(model_tree, newdata=valid_set_pca)
 rmse(validation$SalePrice,sale_price_dtree)
+
+
 ```
+
+## Random Forest
+
+```{r}
+forest_model <- randomForest(SalePrice ~ ., data=train_set_pca, ntree = 300) 
+varImpPlot(forest_model)
+
+sale_price_forest <- predict(forest_model, newdata=valid_set_pca)
+rmse(validation$SalePrice,sale_price_forest)
+```
+
+## Conclusion 
+
+On our validation Set, our random forest model produced a lower rmse value than the decision tree model. Both our models did a fairly well job of predicting the  sales prices as our rmse for both models do not exceed 0.2, and we chose the random forest model to predict sales prices on the test set. Our final kaggle score when using PCA with random forest is 0.4984, which is better than the score of 0.60923 without PCA.
+
+```{r}
+
+test_sp_forest <- predict(forest_model, newdata=test_set_pca)
+
+# We undo the sp = log(sp+1) transformation we did for normality
+test_sp_forest = exp(test_sp_forest)-1
+
+Id<-test_data$Id
+send_to_csv <- data.frame(Id, test_sp_forest)
+names(send_to_csv)[names(send_to_csv) == 'test_sp_forest'] <- 'SalePrice'
+write_csv(send_to_csv, "random_forest_submission.csv")
+
+# Kaggle score is 0.60923 without
+# kaggle score is 0.49841 when using first 60 pca
+
+```
+
 
 

@@ -1,5 +1,4 @@
 ---
-title: "House_Prices"
 author: "Darsh Kale"
 date: "1/5/2022"
 output:
@@ -9,7 +8,7 @@ output:
 
 # Predicting House Prices 
 
-## import Libraries
+## Import Libraries
 
 ```{r}
 library(ggplot2)

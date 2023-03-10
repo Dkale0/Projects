@@ -1,0 +1,47 @@
+https://scholar.smu.edu/cgi/viewcontent.cgi?article=1041&context=datasciencereview#:~:text=In%20general%2C%20logistic%20regression%20performs,variables%20increases%20in%20a%20dataset.
+
+https://www.ibm.com/topics/logistic-regression
+
+https://vitalflux.com/logit-vs-probit-models-differences-examples/#:~:text=and%20Probit%20models%3A-,The%20logit%20model%20is%20used%20to%20model%20the%20odds%20of,features%20will%20belong%20to%20a
+
+https://www.econstor.eu/bitstream/10419/86100/1/02119.pdf
+
+https://bookdown.org/egarpor/PM-UC3M/lm-ii-modsel.html
+
+https://www.mastersindatascience.org/learning/machine-learning-algorithms/logistic-regression/
+
+
+
+
+
+
+
+Random Forests
+
+https://link.springer.com/content/pdf/10.1023/A:1010933404324.pdf
+
+
+Random Forests-
+
+RF is an ensemble learning method used for classification and regression. Developed by Breiman (2001), the method combines Breiman's bagging sampling approach ((1996a), and the random selection of features, introduced independently by Ho (1995); 
+
+About-Random forests are a combination of tree predictors
+such that each tree depends on the values of a random
+vector sampled independently and with the same
+distribution for all trees in the forest. 
+
+Advantages-rohust to noise, prevents overfitting, useful as it can be use to measure variable importance
+
+- bagging technique (no interaction between trees) - trees averaged
+And random forest is baggging + "feature bagging".
+
+
+Like logistic regression, random forests have a wide range of applications.
+
+Unlike logistic regression random forests can also be adapted to work to predict a continous response variable.
+
+They choose which variable to split on using a greedy algorithm that minimizes error. As such, even with Bagging, the decision trees can have a lot of structural similarities and in turn have high correlation in their predictions.
+
+Combining predictions from multiple models in ensembles works better if the predictions from the sub-models are uncorrelated or at best weakly correlated.
+
+Random forest changes the algorithm for the way that the sub-trees are learned so that the resulting predictions from all of the subtrees have less correlation.
